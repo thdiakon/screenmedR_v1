@@ -1,0 +1,158 @@
+---
+title: "The ScreenmedR package"
+#output: rmarkdown::html_vignette
+output:
+  html_document:
+    toc: yes
+    toc_depth: '3'
+vignette: >
+  %\VignetteIndexEntry{my-vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = FALSE,
+  comment = "#>"
+)
+```
+
+
+
+```{r setup}
+library(screenmedR)
+```
+
+This is a simple example of implementation of the code for the screenmed package. The use of it, is to filter the appropriate publications, initially extracted from pubmed using a typical search in order to proceed into a meta-analysis. Collecting the Pubmed Ids (PMID) from a search the program can provide 3 different services.
+
+*  Find the most relevant publications for our study, by comparing all the abstracts of the search with those of a small group of publications that we are pretty sure that they belong to the meta-analysis.
+
+*  Filter the publications according to the number of common Mesh terms of a small group or a single publication.
+
+* Filter the publications according to a list of specific common Mesh Terms that we are interested in. 
+
+
+## Using screenmed to screen abstracts for a meta-analysis or a systematic review
+
+Here, an example is provided, from a meta-analysis publication [] in order to    understand how the program works. One can find more information on the way the program works by reading the above publication.
+
+Initially we applied a search in Pubmed and saved the result in a csv file. We also knew 5 publications that we were quite sure that belong to the study.
+
+
+```{r}
+initial_search <- read.csv("csv-randomized-set.csv")
+initialPMID<-initial_search$PMID
+knownPMID<-c("25641242","18822428","8276025","16452355","8021760")
+```
+
+### The clustering process
+
+Using all that information we apply it to the screenmed function:
+
+```{r}
+a_cluster<-screenmed(initialPMID,knownPMID,0.995,2)
+```
+
+The last term is the number of groups. We chose 2 here as the number of abstracts is quite small, 581. There are a lot of ways of choosing the appropriate numbers of clustering but it will not be discussed further here. Usually for less than 1000 abstracts 2-4 groups would by quite ok. 
+The number before is something that it is useful for the run and sometimes is quite useful for the clustering. It is the number applied to the removesparseterms() function of tm package. 
+It actually removes terms,words that occur very rare (in this case less than 0,5% of the document term matrix). One can play with it between (0,99, 1) to have a better clustering. Bigger difference in Cosine similarity between the two groups in this case.
+
+```{r}
+a_cluster$cosine_similarity
+```
+These two numbers actually tell us the cosine similarity between the groups of abstracts and the initial (knownPMID) group. The bigger the difference between these two numbers the better the clustering. Generally a difference greater than 0.2 in cosine similarity is quite safe for choosing the one group (the first in this case) and discard the other. It is obvious that if the difference is very small it is very risky to discard it.
+
+You can see the number of abstracts that are clustered using the following command:
+
+```{r}
+table(a_cluster$clustering)
+```
+One can notice that the number of abstracts is smaller than 581. This is due to the fact that not all abstracts are extracted from the RISmed package (missing)
+so in that case we should add them up to the ones that we see manually.
+
+```{r}
+a_cluster$missing_abstracts  
+```
+So only 90 are out. Is this good enough? Of course not. We can recluster!!!
+
+```{r}
+secondPMID<-abstractsofgroup(a_cluster$clustering,1,initialPMID)  
+```
+
+The abstractsofgroup() function filters the PMIDS of the abstracts that belong to the first group (the one with the bigger cosine similarity). What is left is a second clustering, using the rules of the first: 
+
+```{r}
+b_cluster<-screenmed(secondPMID,knownPMID,0.995,2)
+b_cluster$cosine_similarity
+table(b_cluster$clustering)
+```
+```{r}
+table(b_cluster$clustering)
+```
+### Cross check and results
+
+So we ended up with 118+63=181 possible abstracts to check out manually. Not bad. If we can this that we have started from 581. Our colleagues did the job for us. The did the whole check manually and found that the rest are:
+```{r}
+rest_relevant_pubs<-c("17329276","8835086","23904065","11023168","10356137","9175947"
+                      ,"8215566","15930210","8346957","33627329")
+```
+
+The cosine similarity result shows that the 2 group should hold our rest_relevant_pubs. Let's check it out:
+
+```{r}
+lastPMID<-abstractsofgroup(b_cluster$clustering,2,initialPMID)
+intersect(rest_relevant_pubs,lastPMID)
+```
+That's correct. Everything is included. Not even needed to check the ones that RISmed could not provide us with abstracts (RISmed is the program that runs behind). The program succeeded to achieve more or less reduction of the manual abstract check to 118/581= 0.2. Not bad at all. Some advice to end up. The process here was a small test. There are meta-analyses that include tens of thousands abstracts. In that case, would be a good idea, to split the initial PMID vector to chunks of 1000 abstract PMIDS and to repeat the process as shown above. One could end up saving a lot of time using the program.
+
+
+## The mesh functions
+
+Before we proceed let's give some useful information. Let's take one publication from our first group of knownPMID the one with PMID 25641242. If one could check its webpage in pubmed:
+
+https://pubmed.ncbi.nlm.nih.gov/25641242/ 
+
+he could see that on the left end of the page there is a column with all the mesh terms. If no slash (/) is included the terms are called Descriptors. In case there is a slash the first term is a Descriptor and the second is called Qualifier. The two sets of functions that this package includes are filtering our results, each one in a different way by using those terms that mentioned here.So for example "Blood Pressure / drug effects*" first term has a Descriptor = Blood Pressure and a Qualifier drug effects. It has more than 20 Descriptors and a lot of Qualifiers too.
+
+### The clean_mesh() and clean_mesh_bq() functions
+
+Let's say that we would like from our initial check (initialPMID) to restrict more our search. For example we would like to include publications to see which have at least some Descriptors and qualifiers in common with our knownPMID publications. In case of a query that includes less than 300 publications one can use clean_mesh(). If there are more, then we could choose clean_mesh_bq(). Here we have 581, so we use the second:
+
+
+
+```{r}
+initialPMID<-initial_search$PMID
+knownPMID<-c("25641242","18822428","8276025","16452355","8021760")
+mesh_clean_bq(initialPMID,knownPMID,11,2)
+```
+
+Another example, checking the common mesh terms of two publications:
+
+```{r}
+a<-c("8276025")
+b<-c("8021760")
+mesh_clean(a,b,7,2)
+```
+
+
+### The mesh_by_name() and mesh_by_name_bq() functions
+
+In the case we need to find publications with specific Mesh terms, Descriptors, Qualifiers, or both, we can use the mesh_by_name() or mesh_by_name_bq() for bigger queries. Eg:
+
+```{r}
+Descriptor<-c("Blood Pressure","Dobutamine","Humans","Infant, Newborn")
+Qualifier<-c("administration & dosage")
+mesh_by_name_bq(initialPMID,Descriptor,Qualifier)
+```
+The filtering works!!!
+
+Enjoy!
+
+
+
+
+
+
+
