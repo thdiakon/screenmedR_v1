@@ -1,0 +1,26 @@
+Package: screenmedR
+Type: Package
+Title: Filtering Pubmed Articles for a meta-analysis. 
+Version: 0.1.0
+Author: Theodoros Diakonidis
+Maintainer: Theodoros Diakonidis <diakonidis@gmail.com>
+Description: screenmedR is a package for automatizing the screening of publications in order to minimize the manual work needed to extract the proper publications for a meta-analysis project.
+License: GPL(>=2)
+Encoding: UTF-8
+LazyData: true
+RoxygenNote: 7.1.1
+Imports: 
+    rentrez,
+    XML,
+    dplyr,
+    purrr,
+    tm,
+    stringr,
+    RISmed,
+    tidyr,
+    proxy,
+    lsa
+Suggests: 
+    knitr,
+    rmarkdown
+VignetteBuilder: knitr
